@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#183454">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>مجموعات الدروس</title>
+<style>
+:root{--ink:#183454;--bg:#eef2f6;--g:#1f8a5b;--r:#c8442f;--a:#b7791f;--mut:#5b6b7c;--ln:#d5dde6}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 "Segoe UI",Tahoma,sans-serif;background:var(--bg);color:#1b2733;padding:0 14px calc(84px + env(safe-area-inset-bottom))}
+main{max-width:640px;margin:0 auto;padding-top:calc(14px + env(safe-area-inset-top))}
+h1{font-size:1.5rem;margin:.6rem 0 .2rem;color:var(--ink)}h1 small{font-size:.9rem;color:var(--mut);font-weight:400}
+h2{font-size:1.05rem;margin:1.4rem 0 .5rem;color:var(--ink)}
+.sub{color:var(--mut);margin:0 0 .6rem}
+button{font:inherit;border:1px solid var(--ln);background:#fff;color:var(--ink);border-radius:10px;padding:.5rem .8rem;cursor:pointer;min-height:44px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #f0b100;outline-offset:2px}
+.pri{background:var(--ink);color:#fff;border-color:var(--ink)}.dan{color:var(--r);border-color:var(--r)}
+.pg{background:var(--g);color:#fff;border-color:var(--g)}.rd{background:var(--r);color:#fff;border-color:var(--r)}
+input,select{font:inherit;width:100%;padding:.55rem .7rem;border:1px solid var(--ln);border-radius:10px;background:#fff;min-height:44px}
+label{display:block;margin:.6rem 0 .2rem;color:var(--mut);font-size:.9rem}
+.card{background:#fff;border-radius:14px;padding:.8rem 1rem;margin:.5rem 0;border-inline-start:5px solid var(--ink);display:flex;flex-direction:column;gap:.4rem}
+.card span{color:var(--mut)}
+.row{display:flex;gap:.5rem;flex-wrap:wrap}.row>*{flex:1}
+.st{background:#fff;border-radius:14px;padding:.7rem .9rem;margin:.5rem 0}
+.st .top{display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+.st .bt{display:flex;gap:.4rem;margin-top:.5rem}.st .bt button{flex:1;padding:.4rem}
+.st small{color:var(--mut);display:block;margin-top:.3rem}
+.chip{display:inline-block;border-radius:99px;padding:.1rem .7rem;font-size:.85rem;border:1px solid}
+.chip.g{color:var(--g)}.chip.r{color:var(--r)}.chip.a{color:var(--a)}.chip.w{color:var(--mut)}
+.x{min-height:36px;padding:.1rem .6rem;color:var(--mut)}
+.link{border:0;background:none;color:var(--ink);padding:0;min-height:36px}
+.note{background:#fff7dc;border:1px solid #f0d27a;border-radius:12px;padding:.7rem;margin:.6rem 0;display:flex;gap:.6rem;align-items:center;justify-content:space-between}
+.empty{color:var(--mut);padding:1rem 0}
+.wk{display:flex;gap:.6rem;padding:.4rem 0;border-bottom:1px solid var(--ln)}.wk b{min-width:5.5rem}
+nav{position:fixed;inset:auto 0 0 0;background:var(--ink);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;color:#b9c8d8;border-radius:0;min-height:56px}
+nav button.on{color:#fff;font-weight:700;box-shadow:inset 0 3px #f0b100}
+dialog{border:0;border-radius:16px;width:min(92vw,460px);padding:1rem 1.2rem;direction:rtl}
+dialog::backdrop{background:#0008}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1a26;--ink:#9cc3ee;--ln:#2c3e52;--mut:#93a4b6}
+body{color:#e6edf4}.card,.st,button,input,select,dialog{background:#182636;color:#e6edf4}.pri{background:#2d6cb5;color:#fff;border-color:#2d6cb5}
+.note{background:#3a3114;border-color:#6d5a1c}nav{background:#182636}nav button.on{color:#9cc3ee}}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<nav>
+<button data-v="today" onclick="go('today')">اليوم</button>
+<button data-v="groups" onclick="go('groups')">المجموعات</button>
+<button data-v="set" onclick="go('set')">الإعدادات</button>
+</nav>
+<dialog id="dlg"></dialog>
+<script>
+const DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'],ICD=['SU','MO','TU','WE','TH','FR','SA'];
+let db;try{db=JSON.parse(localStorage.getItem('tutor'))}catch{}
+db=db||{groups:[],set:{lead:30,morning:'08:00'}};
+const save=()=>{try{localStorage.setItem('tutor',JSON.stringify(db))}catch{alert('تعذر الحفظ على المتصفح')}};
+const uid=()=>Math.random().toString(36).slice(2,9);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const iso=d=>new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const fmt=t=>{let h=+t.slice(0,2);return (h%12||12)+':'+t.slice(3)+(h>=12?' م':' ص')};
+const G=id=>db.groups.find(g=>g.id===id);
+let view='today',gid=null,date=iso(new Date()),dp=null;
+
+const att=(g,s)=>Object.values(g.att).filter(d=>d[s.id]===1).length;
+function pay(g,s){const a=att(g,s),p=(g.pays[s.id]||[]).length,rem=p*4-a;
+ if(!p)return a?{c:'r',t:'مطلوب الدفع'}:{c:'w',t:'لم يدفع'};
+ if(rem>0)return{c:'g',t:'مدفوع · باقي '+rem};
+ if(rem==0)return{c:'a',t:'خلصت الحصص المدفوعة'};
+ return{c:'r',t:'متأخر '+(-rem)+' حصة'}}
+
+function R(){$('#app').innerHTML=view=='today'?vToday():view=='groups'?vGroups():view=='group'?vGroup():vSet();
+ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v==(view=='group'?'groups':view)))}
+function go(v,id){view=v;if(id)gid=id;R();scrollTo(0,0)}
+const dateIn=()=>`<input type="date" value="${date}" onchange="date=this.value||date;R()" aria-label="التاريخ">`;
+
+function vToday(){
+ const dow=new Date(date+'T12:00').getDay(),items=[];
+ db.groups.forEach(g=>g.sch.forEach(s=>{if(s.d==dow)items.push({g,s})}));
+ items.sort((a,b)=>a.s.t.localeCompare(b.s.t));
+ let h=`<h1>${DAYS[dow]} <small>${date}</small></h1>${dateIn()}`;
+ if('Notification'in window&&Notification.permission=='default')h+=`<div class="note"><span>فعّل الإشعارات عشان توصلك تذكيرات الدروس.</span><button class="pri" onclick="askN()">تفعيل</button></div>`;
+ h+=`<h2>دروس اليوم</h2>`;
+ h+=items.length?items.map(({g,s})=>`<div class="card"><b>${esc(g.name)}</b><span>${fmt(s.t)} · ${g.students.length} طالب${g.att[date]?' · تم تسجيل الحضور':''}</span><button class="pri" onclick="gid='${g.id}';go('group')">${g.att[date]?'تعديل الحضور':'تسجيل الحضور'}</button></div>`).join(''):'<p class="empty">مفيش دروس في اليوم ده.</p>';
+ const due=[];db.groups.forEach(g=>g.students.forEach(s=>{const p=pay(g,s);if(p.c=='r'||p.c=='a')due.push(`<div class="wk"><b>${esc(s.name)}</b><span>${esc(g.name)}</span><span class="chip ${p.c}">${p.t}</span></div>`)}));
+ if(due.length)h+=`<h2>مطلوب منهم دفع</h2>`+due.join('');
+ h+=`<h2>جدول الأسبوع</h2>`;
+ const wk=[6,0,1,2,3,4,5].map(d=>{const l=[];db.groups.forEach(g=>g.sch.forEach(s=>{if(s.d==d)l.push({n:g.name,t:s.t})}));l.sort((a,b)=>a.t.localeCompare(b.t));return l.length?`<div class="wk"><b>${DAYS[d]}</b><span>${l.map(x=>esc(x.n)+' '+fmt(x.t)).join(' — ')}</span></div>`:''}).join('');
+ return h+(wk||'<p class="empty">أضف مجموعات من تبويب المجموعات.</p>')}
+
+function vGroups(){
+ return `<h1>المجموعات</h1><button class="pri" style="width:100%" onclick="editGroup()">+ مجموعة جديدة</button>`+
+ (db.groups.map(g=>`<div class="card" onclick="gid='${g.id}';go('group')" style="cursor:pointer"><b>${esc(g.name)}</b><span>${g.sch.map(s=>DAYS[s.d]+' '+fmt(s.t)).join(' و ')} · ${g.students.length} طالب</span></div>`).join('')||'<p class="empty">لسه مفيش مجموعات. اضغط على «مجموعة جديدة».</p>')}
+
+function vGroup(){
+ const g=G(gid);if(!g){view='groups';return vGroups()}
+ const A=g.att[date]||{};
+ let h=`<button class="link" onclick="go('groups')">‹ رجوع</button><h1>${esc(g.name)}</h1>
+ <p class="sub">${g.sch.map(s=>DAYS[s.d]+' '+fmt(s.t)).join(' و ')}${g.price?' · '+esc(g.price)+' جنيه / 4 حصص':''}</p>
+ <div class="row"><button onclick="editGroup('${g.id}')">تعديل المجموعة</button><button class="dan" onclick="delGroup('${g.id}')">حذف المجموعة</button></div>
+ <h2>كشف الحضور والدفع</h2>${dateIn()}`;
+ h+=g.students.map(s=>{const p=pay(g,s),n=(g.pays[s.id]||[]).length;return `<div class="st"><div class="top"><b>${esc(s.name)}</b><span><span class="chip ${p.c}">${p.t}</span><button class="x" onclick="delSt('${s.id}')" aria-label="حذف الطالب">×</button></span></div>
+ <div class="bt"><button class="${A[s.id]===1?'pg':''}" onclick="mark('${s.id}',1)">حضر</button><button class="${A[s.id]===0?'rd':''}" onclick="mark('${s.id}',0)">غاب</button><button onclick="addPay('${s.id}')">+ دفعة</button>${n?`<button class="x" onclick="undoPay('${s.id}')" aria-label="إلغاء آخر دفعة">↶</button>`:''}</div>
+ <small>حضر ${att(g,s)} حصة · ${n} دفعة</small></div>`}).join('')||'<p class="empty">أضف أسماء الطلاب من تحت.</p>';
+ return h+`<h2>إضافة طلاب</h2><input id="ns" placeholder="اسم الطالب (أو أكتر، افصل بينهم بفاصلة)" onkeydown="if(event.key=='Enter')addSt()"><button class="pri" style="width:100%;margin-top:.5rem" onclick="addSt()">إضافة</button>`}
+
+function vSet(){
+ return `<h1>الإعدادات</h1>
+ <h2>التذكير</h2>
+ <label>أنبهني قبل الحصة بـ (دقيقة)</label><input type="number" min="0" max="240" value="${db.set.lead}" onchange="db.set.lead=+this.value||0;save()">
+ <label>ملخص دروس اليوم الساعة</label><input type="time" value="${db.set.morning}" onchange="db.set.morning=this.value;save()">
+ <div class="row" style="margin-top:.6rem"><button class="pri" onclick="askN()">تفعيل الإشعارات</button><button onclick="ics()">تذكير مضمون بالتقويم</button></div>
+ <p class="sub">الإشعارات بتشتغل لما التطبيق يكون شغال أو في الخلفية. للتذكير المضمون حتى لو التطبيق مقفول، حمّل ملف التقويم وافتحه مرة واحدة، وهيتكرر كل أسبوع.</p>
+ ${dp?'<h2>التثبيت</h2><button class="pri" style="width:100%" onclick="dp.prompt();dp=null;R()">تثبيت التطبيق</button>':''}
+ <h2>نسخة احتياطية</h2><div class="row"><button onclick="download('دروسي-نسخة.json','application/json',JSON.stringify(db))">حفظ نسخة</button><button onclick="$('#imp').click()">استرجاع نسخة</button></div>
+ <input id="imp" type="file" accept=".json" hidden onchange="imp(this.files[0])">
+ <p class="sub">البيانات محفوظة على تليفونك بس. خد نسخة كل فترة.</p>`}
+
+function mark(sid,v){const g=G(gid);const a=g.att[date]=g.att[date]||{};if(a[sid]===v)delete a[sid];else a[sid]=v;if(!Object.keys(a).length)delete g.att[date];save();R()}
+function addPay(sid){const g=G(gid);(g.pays[sid]=g.pays[sid]||[]).push(date);save();R()}
+function undoPay(sid){if(confirm('إلغاء آخر دفعة؟')){G(gid).pays[sid].pop();save();R()}}
+function addSt(){const g=G(gid),v=$('#ns').value.split(/[,،\n]/).map(x=>x.trim()).filter(Boolean);v.forEach(n=>g.students.push({id:uid(),name:n}));save();R()}
+function delSt(sid){const g=G(gid),s=g.students.find(x=>x.id==sid);if(confirm('حذف '+s.name+' وكل بياناته؟')){g.students=g.students.filter(x=>x.id!=sid);delete g.pays[sid];Object.values(g.att).forEach(a=>delete a[sid]);save();R()}}
+function delGroup(id){if(confirm('حذف المجموعة بكل بياناتها؟')){db.groups=db.groups.filter(g=>g.id!=id);save();go('groups')}}
+
+const dsel=(id,v,none)=>`<select id="${id}">${none?`<option value="-1" ${v<0?'selected':''}>— مفيش —</option>`:''}${[6,0,1,2,3,4,5].map(d=>`<option value="${d}" ${d==v?'selected':''}>${DAYS[d]}</option>`).join('')}</select>`;
+function editGroup(id){
+ const g=id?G(id):{name:'',price:'',sch:[{d:6,t:'16:00',m:60}]},s1=g.sch[0],s2=g.sch[1]||{d:-1,t:'16:00'};
+ $('#dlg').innerHTML=`<h2 style="margin-top:0">${id?'تعديل المجموعة':'مجموعة جديدة'}</h2>
+ <label>اسم المجموعة</label><input id="gn" value="${esc(g.name)}">
+ <label>سعر الـ 4 حصص (جنيه)</label><input id="gp" type="number" inputmode="numeric" value="${esc(g.price)}">
+ <label>اليوم الأول</label><div class="row">${dsel('d1',s1.d)}<input id="t1" type="time" value="${s1.t}"></div>
+ <label>اليوم التاني (اختياري)</label><div class="row">${dsel('d2',s2.d,1)}<input id="t2" type="time" value="${s2.t}"></div>
+ <label>مدة الحصة (دقيقة)</label><input id="gm" type="number" value="${s1.m||60}">
+ <div class="row" style="margin-top:1rem"><button class="pri" onclick="saveGroup('${id||''}')">حفظ</button><button onclick="$('#dlg').close()">إلغاء</button></div>`;
+ $('#dlg').showModal()}
+function saveGroup(id){
+ const name=$('#gn').value.trim();if(!name)return alert('اكتب اسم المجموعة');
+ const m=+$('#gm').value||60,sch=[{d:+$('#d1').value,t:$('#t1').value||'16:00',m}];
+ if($('#d2').value!='-1')sch.push({d:+$('#d2').value,t:$('#t2').value||'16:00',m});
+ if(id){Object.assign(G(id),{name,price:$('#gp').value,sch})}else{const n={id:uid(),name,price:$('#gp').value,sch,students:[],att:{},pays:{}};db.groups.push(n);gid=n.id;view='group'}
+ save();$('#dlg').close();R()}
+
+function download(n,t,x){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([x],{type:t+';charset=utf-8'}));a.download=n;a.click()}
+function imp(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.groups)throw 0;if(confirm('هيتم استبدال البيانات الحالية. متأكد؟')){db=d;save();go('today')}}catch{alert('الملف مش صالح')}};r.readAsText(f)}
+function ics(){
+ if(!db.groups.length)return alert('أضف مجموعات الأول');
+ const p=n=>String(n).padStart(2,'0'),st=new Date().toISOString().replace(/[-:]|\.\d+/g,'');
+ const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//tutor//AR//','CALSCALE:GREGORIAN'];
+ db.groups.forEach(g=>g.sch.forEach((s,i)=>{const d=new Date();d.setHours(12,0,0,0);while(d.getDay()!=s.d)d.setDate(d.getDate()+1);
+  const ds=d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'T'+s.t.replace(':','')+'00';
+  L.push('BEGIN:VEVENT','UID:'+g.id+i+'@tutor','DTSTAMP:'+st,'DTSTART:'+ds,'DURATION:PT'+(s.m||60)+'M','RRULE:FREQ=WEEKLY;BYDAY='+ICD[s.d],'SUMMARY:درس '+g.name,'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:درس '+g.name,'TRIGGER:-PT'+db.set.lead+'M','END:VALARM','END:VEVENT')}));
+ L.push('END:VCALENDAR');download('دروسي.ics','text/calendar',L.join('\r\n'))}
+
+function askN(){if(!('Notification'in window))return alert('المتصفح ده مش بيدعم الإشعارات');Notification.requestPermission().then(()=>R())}
+function nt(t,b){if(!('Notification'in window)||Notification.permission!='granted')return;
+ if(navigator.serviceWorker&&navigator.serviceWorker.controller)navigator.serviceWorker.ready.then(r=>r.showNotification(t,{body:b,icon:'icon-192.png',dir:'rtl',lang:'ar'}));
+ else{try{new Notification(t,{body:b})}catch{}}}
+function tick(){
+ const n=new Date(),k=iso(n),dow=n.getDay(),m=n.getHours()*60+n.getMinutes();
+ let sent={};try{sent=JSON.parse(localStorage.getItem('sent'))||{}}catch{}
+ Object.keys(sent).forEach(x=>{if(!x.startsWith(k))delete sent[x]});
+ const td=[];db.groups.forEach(g=>g.sch.forEach(s=>{if(s.d==dow)td.push({g,s})}));
+ td.sort((a,b)=>a.s.t.localeCompare(b.s.t));
+ const [mh,mm]=(db.set.morning||'08:00').split(':');
+ if(td.length&&m>=+mh*60+ +mm&&!sent[k+'m']){nt('دروس النهاردة',td.map(x=>x.g.name+' — '+fmt(x.s.t)).join('\n'));sent[k+'m']=1}
+ td.forEach(({g,s})=>{const t=+s.t.slice(0,2)*60+ +s.t.slice(3),key=k+g.id+s.t;
+  if(m>=t-db.set.lead&&m<t&&!sent[key]){nt('قرّب درس '+g.name,'الساعة '+fmt(s.t));sent[key]=1}});
+ try{localStorage.setItem('sent',JSON.stringify(sent))}catch{}}
+
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();dp=e;if(view=='set')R()});
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+setInterval(tick,30000);tick();R();
+</script>
+</body>
+</html>
