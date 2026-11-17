@@ -100,11 +100,13 @@ const G=id=>db.groups.find(g=>g.id===id);
 let view='today',gid=null,date=iso(new Date()),dp=null;
 
 const att=(g,s)=>Object.values(g.att).filter(d=>d[s.id]===1).length;
-function pay(g,s){const a=att(g,s),p=(g.pays[s.id]||[]).length,rem=p*4-a;
- if(!p)return a?{c:'r',t:'⚠️ مطلوب الدفع'}:{c:'w',t:'لم يدفع'};
- if(rem>0)return{c:'g',t:'✅ مدفوع · باقي '+rem};
- if(rem==0)return{c:'a',t:'🔔 خلصت الحصص المدفوعة'};
- return{c:'r',t:'⚠️ متأخر '+(-rem)+' حصة'}}
+function stat(g,s,a,td){const p=(g.pays[s.id]||[]).length,u=Math.floor(a/4)-p,k=a%4;
+ if(u>=2||(u==1&&k>0))return{c:'r',t:'⚠️ متأخر '+(u>=2?u+' دفعات':'دفعة')};
+ if(u==1)return{c:'a',t:td?'🔔 يدفع النهاردة':'🔔 يدفع الآن'};
+ if(u<0)return{c:'g',t:'✅ مدفوع مقدما'};
+ if(!k&&p)return{c:'g',t:'✅ مسدد'};
+ return{c:'w',t:'📘 حضر '+k+' من 4'}}
+const pay=(g,s)=>stat(g,s,att(g,s));
 
 let sid=null,q='',showArch=false,mon=iso(new Date()).slice(0,7);
 const IC={today:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>',week:'<rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 13h2M14 13h2M8 17h2M14 17h2"/>',groups:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14c3 0 4.5 2 4.5 5"/>',set:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'};
@@ -118,7 +120,7 @@ const price=g=>parseFloat(g.price)||0,cancelled=(g,d)=>(g.cancel||{})[d];
 function clash(d){const l=[],bad={};act().forEach(g=>g.sch.forEach(s=>{if(s.d==d)l.push({g,s})}));
  l.forEach((a,i)=>l.forEach((b,j)=>{if(i<j&&stT(a.s)<endT(b.s)&&stT(b.s)<endT(a.s)){(bad[a.g.id+a.s.t]=bad[a.g.id+a.s.t]||[]).push(b.g.name);(bad[b.g.id+b.s.t]=bad[b.g.id+b.s.t]||[]).push(a.g.name)}}));return{l,bad}}
 function chk(id){const g=G(id),m=[];g.sch.forEach(s=>{const b=clash(s.d).bad[g.id+s.t];if(b&&!g.archived)m.push(DAYS[s.d]+' '+fmt(s.t)+' يتداخل مع: '+b.join('، '))});if(m.length)alert('⚠ تنبيه تداخل مواعيد\n'+m.join('\n'))}
-function owed(g,s){const a=att(g,s),p=(g.pays[s.id]||[]).length,u=Math.max(0,Math.ceil(a/4)-p);return u||(a>0&&p*4==a?1:0)}
+const owed=(g,s)=>Math.max(0,Math.floor(att(g,s)/4)-(g.pays[s.id]||[]).length);
 const gDue=g=>g.students.reduce((n,s)=>n+owed(g,s)*price(g),0);
 function dues(){let tot=0,l=[];act().forEach(g=>g.students.forEach(s=>{const o=owed(g,s);if(o){const amt=o*price(g);tot+=amt;l.push({g,s,amt,p:pay(g,s)})}}));return{tot,l}}
 function streak(g,s){let n=0;for(const d of Object.keys(g.att).filter(d=>g.att[d][s.id]!==undefined).sort().reverse()){if(g.att[d][s.id]===0)n++;else break}return n}
@@ -137,8 +139,7 @@ const empty=t=>`<div class="empty">${t}</div>`;
 
 const cinfo=v=>typeof v=='object'?v:{mk:'',t:''};
 const pre=(g,s,d)=>Object.keys(g.att).filter(x=>x<d&&g.att[x][s.id]===1).length;
-function dueNow(g,s,d){const p=pre(g,s,d),cap=(g.pays[s.id]||[]).length*4;
- if(cap>p)return{c:'g',t:'✅ مدفوع · باقي '+(cap-p)};if(cap==p)return{c:'a',t:'🔔 يدفع النهاردة'};return{c:'r',t:'⚠️ متأخر '+(p-cap)+' حصة'}}
+const dueNow=(g,s,d)=>stat(g,s,pre(g,s,d),1);
 const av=n=>{const h=[...n].reduce((x,c)=>x*31+c.charCodeAt(0)>>>0,7)%360;return `<div class="av" style="background:hsl(${h} 85% 91%);color:hsl(${h} 55% 32%)">${esc(n.trim()[0]||'؟')}</div>`};
 function sessionsOn(d){const w=new Date(d+'T12:00').getDay(),L=[];
  act().forEach(g=>{g.sch.forEach(s=>{const c=cancelled(g,d);if(s.d==w)L.push({g,s,c:c?cinfo(c):null})});
@@ -178,7 +179,7 @@ function vGroup(){
  const g=G(gid);if(!g){view='groups';return vGroups()}
  const A=g.att[date]||{},cv=cancelled(g,date),wd=new Date(date+'T12:00').getDay(),isMk=Object.values(g.cancel||{}).some(v=>cinfo(v).mk===date),off=!isMk&&!cv&&!g.sch.some(s=>s.d==wd),d=gDue(g),P=pend().filter(x=>x.g.id==g.id);
  const rows=g.students.map(s=>({s,p:dueNow(g,s,date)})),tp=rows.filter(x=>x.p.c=='a'),lt=rows.filter(x=>x.p.c=='r');
- const amt=(tp.length+lt.reduce((n,x)=>n+Math.max(1,Math.ceil((pre(g,x.s,date)-(g.pays[x.s.id]||[]).length*4)/4)),0))*price(g);
+ const amt=[...tp,...lt].reduce((n,x)=>n+Math.max(1,Math.floor(pre(g,x.s,date)/4)-(g.pays[x.s.id]||[]).length),0)*price(g);
  let h=`<div class="stats"><div><b>${g.students.length}</b><span>👥 الطلاب</span></div><div><b>${Object.keys(g.att).length}</b><span>🗓️ حصص مسجلة</span></div><div><b>${d}</b><span>💰 مطلوب (ج)</span></div></div>
  <p style="color:var(--mut);margin:8px 4px">${g.price?'سعر الـ 4 حصص: '+esc(g.price)+' جنيه':'لم يحدد سعر'}</p>
  <div class="row"><button onclick="editGroup('${g.id}')">✏️ تعديل</button><button onclick="arch('${g.id}')">${g.archived?'إلغاء الأرشفة':'📦 أرشفة'}</button><button class="dan" onclick="delGroup('${g.id}')">حذف</button></div>`;
